@@ -62,7 +62,7 @@ const ChatId = ({ params }) => {
 
     useEffect(() => {
         function setMessages(id) {
-            return messages.filter(msg => msg.to === id || msg.from === id);
+            return messages.filter(msg => msg.target.includes(id) && msg.target.includes(user));
         }
         setChat(setMessages(id));
     }, [messages, id]);

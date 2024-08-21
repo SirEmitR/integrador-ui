@@ -144,6 +144,7 @@ const ConnectionProvider = ({ children }) => {
                     setChats(msg.data.clients);
                     break;
                 case 'message':
+                    console.log(msg.data);
                     setMessages(msg.data);
                     break;
                 default:
@@ -172,7 +173,7 @@ const ConnectionProvider = ({ children }) => {
 
     useEffect(() => {
         if(chat && ws){
-            ws.send(`messages;${chat}`);
+            ws.send(`messages;${JSON.stringify({to: chat, from: user})}`);
         }
     }, [chat, ws])
     return (
