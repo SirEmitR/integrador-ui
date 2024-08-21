@@ -14,7 +14,11 @@ const ConnectionProvider = ({ children }) => {
 
     const [progress, setProgress] = useState(0);
     const [chats, setChats] = useState([]);
-
+    const [chat, setChat] = useState('');
+    const handleChat = (id) => {
+        setChat(id);
+    }
+    const [messages, setMessages] = useState([]);
     const [ws, setWs] = useState(null);
 
     const uploadPP = (data) => {
@@ -59,20 +63,21 @@ const ConnectionProvider = ({ children }) => {
     }
 
     const sendMessage = (data) => {
-        const {type, message, to, from} = data;
+        const {type, message, to, from, file, members} = data;
         if(type === 'text'){
             const msg = `text;${JSON.stringify({message, to, from})}`;
             ws.send(msg);
         }
 
         if(type === 'file'){
-            const isPhoto = message.type.includes('image');
+            const isPhoto = file.type.includes('image');
             const sendData = {
-                id: user.id,
-                type: isPhoto ? 'image' : 'file',
-                name: message.name,
+                id: user,
+                type: isPhoto ? 'images' : 'documents',
+                name: file.name,
                 to,
-                from
+                from,
+                message
             }
             const msg = `upload;${JSON.stringify(sendData)}`;
             ws.send(msg);
@@ -92,11 +97,10 @@ const ConnectionProvider = ({ children }) => {
                         setTimeout(sendChunk, 10);
                     }else{
                         ws.close();
-                        console.log('File sent');
                         setUser(prev => {
                             return {
                                 ...prev,
-                                image: getFileName(prev.id, 'profile_pics', message.name)
+                                image: getFileName(prev.id, 'profile_pics', file.name)
                             }
                         })
                         setProgress(0);
@@ -106,7 +110,18 @@ const ConnectionProvider = ({ children }) => {
                 sendChunk();
                 
             }
-            reader.readAsArrayBuffer(message);
+            reader.readAsArrayBuffer(file);
+        }
+
+        if(type === 'new_group'){
+            const sendData = {
+                id: user,
+                name: message,
+                type: 'group',
+                members
+            }
+            const msg = `new_group;${JSON.stringify(sendData)}`;
+            ws.send(msg);
         }
     }
 
@@ -118,7 +133,7 @@ const ConnectionProvider = ({ children }) => {
             setWs(ws);
         };
 
-        ws.onmessage = (message) => {
+        ws.onmessage = (message) => {;
             const msg = JSON.parse(message.data);
             switch (msg.type) {
                 case 'connected':
@@ -129,14 +144,7 @@ const ConnectionProvider = ({ children }) => {
                     setChats(msg.data.clients);
                     break;
                 case 'message':
-                    console.log(msg.data);
-                    const newChats = chats.map(client => {
-                        if(client.id === msg.data.from){
-                            client.messages.push(msg.data);
-                        }
-                        return client;
-                    });
-                    setChats(newChats);
+                    setMessages(msg.data);
                     break;
                 default:
                     break;
@@ -162,6 +170,11 @@ const ConnectionProvider = ({ children }) => {
         return data;
     }
 
+    useEffect(() => {
+        if(chat && ws){
+            ws.send(`messages;${chat}`);
+        }
+    }, [chat, ws])
     return (
         <connectionProvider.Provider value={{
             user,
@@ -169,7 +182,9 @@ const ConnectionProvider = ({ children }) => {
             progress,
             chats,
             getClient,
-            sendMessage
+            sendMessage,
+            messages,
+            handleChat
         }}>
             {children}
         </connectionProvider.Provider>
