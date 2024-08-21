@@ -1,5 +1,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
+import ConnectionProvider from "@/providers/connection";
+import Chats from "@/components/chats";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -10,8 +12,13 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en-MX">
+      <body style={inter.style} className="flex h-[100dvh]">
+        <ConnectionProvider>
+          <Chats />
+          {children}
+        </ConnectionProvider>
+      </body>
     </html>
   );
 }
