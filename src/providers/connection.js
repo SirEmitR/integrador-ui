@@ -58,6 +58,58 @@ const ConnectionProvider = ({ children }) => {
         reader.readAsArrayBuffer(data);
     }
 
+    const sendMessage = (data) => {
+        const {type, message, to, from} = data;
+        if(type === 'text'){
+            const msg = `text;${JSON.stringify({message, to, from})}`;
+            ws.send(msg);
+        }
+
+        if(type === 'file'){
+            const isPhoto = message.type.includes('image');
+            const sendData = {
+                id: user.id,
+                type: isPhoto ? 'image' : 'file',
+                name: message.name,
+                to,
+                from
+            }
+            const msg = `upload;${JSON.stringify(sendData)}`;
+            ws.send(msg);
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const arrayBuffer = event.target.result;
+                const chunkSize = 1024;
+                let ofset = 0;
+    
+                function sendChunk(){
+                    if(ofset < arrayBuffer.byteLength){
+                        const chunk = arrayBuffer.slice(ofset, ofset + chunkSize);
+                        ws.send(chunk);
+                        ofset += chunkSize;
+                        const percent = Math.floor((ofset / arrayBuffer.byteLength) * 100);
+                        setProgress(percent);
+                        setTimeout(sendChunk, 10);
+                    }else{
+                        ws.close();
+                        console.log('File sent');
+                        setUser(prev => {
+                            return {
+                                ...prev,
+                                image: getFileName(prev.id, 'profile_pics', message.name)
+                            }
+                        })
+                        setProgress(0);
+                    }
+                }
+    
+                sendChunk();
+                
+            }
+            reader.readAsArrayBuffer(message);
+        }
+    }
+
     useEffect(() => {
         const ws = new WebSocket('wss://localhost:41200');
 
@@ -75,6 +127,16 @@ const ConnectionProvider = ({ children }) => {
                     break;
                 case 'new_client':;
                     setChats(msg.data.clients);
+                    break;
+                case 'message':
+                    console.log(msg.data);
+                    const newChats = chats.map(client => {
+                        if(client.id === msg.data.from){
+                            client.messages.push(msg.data);
+                        }
+                        return client;
+                    });
+                    setChats(newChats);
                     break;
                 default:
                     break;
@@ -96,7 +158,8 @@ const ConnectionProvider = ({ children }) => {
     }, []);
 
     function getClient(id){
-        return chats.find(client => client.id === id);
+        const data = chats.find(client => client.id === id);
+        return data;
     }
 
     return (
@@ -105,7 +168,8 @@ const ConnectionProvider = ({ children }) => {
             uploadPP,
             progress,
             chats,
-            getClient
+            getClient,
+            sendMessage
         }}>
             {children}
         </connectionProvider.Provider>
