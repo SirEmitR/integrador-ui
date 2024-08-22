@@ -2,8 +2,11 @@
 import Message from '@/components/message';
 import { useConnection } from '@/providers/connection';
 import React, { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation';
 
 const ChatId = ({ params }) => {
+    const searchParams = useSearchParams();
+    const type = searchParams.get('type');
     const id = params.id;
     const { getClient, sendMessage, user, messages, handleChat } = useConnection();
     const client = getClient(id);
@@ -49,7 +52,8 @@ const ChatId = ({ params }) => {
             message,
             to: id,
             from: user,
-            file: hasFile ? e.target.file.files[0] : null
+            file: hasFile ? e.target.file.files[0] : null,
+            targetType: type
         };
         sendMessage(data);
         setFile(null);
@@ -62,7 +66,7 @@ const ChatId = ({ params }) => {
 
     useEffect(() => {
         function setMessages(id) {
-            return messages.filter(msg => msg.target.includes(id) && msg.target.includes(user));
+            return messages.filter(msg => msg.target.includes(id) && msg.targetType === type);
         }
         setChat(setMessages(id));
     }, [messages, id]);

@@ -5,14 +5,14 @@ import { useState } from "react"
 
 const NewGroup = () => {
     const [open, setOpen] = useState(false);
-    const  { chats, sendMessage } = useConnection()
+    const  { chats, sendMessage, user } = useConnection()
 
     const handleGroup = (e) => {
         e.preventDefault(); 
         const data = {
             type: 'new_group',
             message: e.target.name.value,
-            members: chats.filter(chat => e.target[chat.id].checked).map(chat => chat.id)
+            members: chats.filter(chat => e.target[chat.id].checked).map(chat => chat.id).concat(user)
         }
         sendMessage(data);
         setOpen(false);

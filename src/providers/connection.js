@@ -63,9 +63,9 @@ const ConnectionProvider = ({ children }) => {
     }
 
     const sendMessage = (data) => {
-        const {type, message, to, from, file, members} = data;
+        const {type, message, to, from, file, members, targetType} = data;
         if(type === 'text'){
-            const msg = `text;${JSON.stringify({message, to, from})}`;
+            const msg = `text;${JSON.stringify({message, to, from, targetType})}`;
             ws.send(msg);
         }
 
@@ -172,10 +172,14 @@ const ConnectionProvider = ({ children }) => {
     }
 
     useEffect(() => {
-        if(chat && ws){
-            ws.send(`messages;${JSON.stringify({to: chat, from: user})}`);
+        if(chat && ws && chats.length > 0){
+            const toType = chats.find(client => client.id === chat)
+            if(toType){
+                ws.send(`messages;${JSON.stringify({to: chat, from: user, targetType: toType.type})}`);
+            }
+            
         }
-    }, [chat, ws])
+    }, [chat, ws, chats])
     return (
         <connectionProvider.Provider value={{
             user,
