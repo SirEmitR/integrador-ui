@@ -1,6 +1,7 @@
 'use client'
 import { getFileName } from "@/lib/file";
 import { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from "next/navigation";
 
 export const connectionProvider = createContext({
 });
@@ -11,7 +12,7 @@ export function useConnection() {
 
 const ConnectionProvider = ({ children }) => {
     const [user, setUser] = useState('');
-
+    const pathname = usePathname();
     const [progress, setProgress] = useState(0);
     const [chats, setChats] = useState([]);
     const [chat, setChat] = useState('');
@@ -21,54 +22,20 @@ const ConnectionProvider = ({ children }) => {
     const [messages, setMessages] = useState([]);
     const [ws, setWs] = useState(null);
 
-    const uploadPP = (data) => {
-        const sendData = {
-            id: user.id,
-            name: data.name,
-            type: 'profile_pics'
-        }
-        const msg = `upload;${JSON.stringify(sendData)}`
-        ws.send(msg);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const arrayBuffer = event.target.result;
-            const chunkSize = 1024;
-            let ofset = 0;
-
-            function sendChunk(){
-                if(ofset < arrayBuffer.byteLength){
-                    const chunk = arrayBuffer.slice(ofset, ofset + chunkSize);
-                    ws.send(chunk);
-                    ofset += chunkSize;
-                    const percent = Math.floor((ofset / arrayBuffer.byteLength) * 100);
-                    setProgress(percent);
-                    setTimeout(sendChunk, 10);
-                }else{
-                    ws.close();
-                    console.log('File sent');
-                    setUser(prev => {
-                        return {
-                            ...prev,
-                            image: getFileName(prev.id, 'profile_pics', data.name)
-                        }
-                    })
-                    setProgress(0);
-                }
-            }
-
-            sendChunk();
-            
-        }
-        reader.readAsArrayBuffer(data);
-    }
-
     const sendMessage = (data) => {
         const {type, message, to, from, file, members, targetType} = data;
         if(type === 'text'){
             const msg = `text;${JSON.stringify({message, to, from, targetType})}`;
-            ws.send(msg);
+            fetch('/api/encrypt', {
+                method: 'POST',
+                body: JSON.stringify({type: 'message', data: msg}),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json()).then(result => {
+                ws.send(result.result);
+            })
         }
-
         if(type === 'file'){
             const isPhoto = file.type.includes('image');
             const sendData = {
@@ -77,17 +44,18 @@ const ConnectionProvider = ({ children }) => {
                 name: file.name,
                 to,
                 from,
-                message
+                message,
+                targetType
             }
             const msg = `upload;${JSON.stringify(sendData)}`;
             ws.send(msg);
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 const arrayBuffer = event.target.result;
                 const chunkSize = 1024;
                 let ofset = 0;
     
-                function sendChunk(){
+                async function sendChunk(){
                     if(ofset < arrayBuffer.byteLength){
                         const chunk = arrayBuffer.slice(ofset, ofset + chunkSize);
                         ws.send(chunk);
@@ -96,18 +64,13 @@ const ConnectionProvider = ({ children }) => {
                         setProgress(percent);
                         setTimeout(sendChunk, 10);
                     }else{
-                        ws.close();
-                        setUser(prev => {
-                            return {
-                                ...prev,
-                                image: getFileName(prev.id, 'profile_pics', file.name)
-                            }
-                        })
+                        ws.send('finish');
                         setProgress(0);
+                        return
+                        
                     }
                 }
-    
-                sendChunk();
+                await sendChunk();
                 
             }
             reader.readAsArrayBuffer(file);
@@ -121,7 +84,15 @@ const ConnectionProvider = ({ children }) => {
                 members
             }
             const msg = `new_group;${JSON.stringify(sendData)}`;
-            ws.send(msg);
+            fetch('/api/encrypt', {
+                method: 'POST',
+                body: JSON.stringify({type: 'message', data: msg}),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json()).then(result => {
+                ws.send(result.result);
+            })
         }
     }
 
@@ -133,27 +104,35 @@ const ConnectionProvider = ({ children }) => {
             setWs(ws);
         };
 
-        ws.onmessage = (message) => {;
-            const msg = JSON.parse(message.data);
-            switch (msg.type) {
-                case 'connected':
-                    setUser(msg.data.you);
-                    setChats(msg.data.clients);
-                    break;
-                case 'new_client':;
-                    setChats(msg.data.clients);
-                    break;
-                case 'message':
-                    console.log(msg.data);
-                    setMessages(msg.data);
-                    break;
-                default:
-                    break;
-            }
+        ws.onmessage = (message) => {
+            fetch('/api/decrypt', {
+                method: 'POST',
+                body: JSON.stringify({message: message.data}),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.json()).then(result => {
+                const msg = result.result;
+                switch (msg.type) {
+                    case 'connected':
+                        setUser(msg.data.you);
+                        setChats(msg.data.clients);
+                        break;
+                    case 'new_client':;
+                        setChats(msg.data.clients);
+                        break;
+                    case 'message':
+                        console.log(msg.data);
+                        setMessages(msg.data);
+                        break;
+                    default:
+                        break;
+                }
+            })
         };
 
         ws.onclose = () => {
-            console.log('Disconnected from server');
+            console.log('Disconnected from server a');
         };
 
         ws.onerror = (error) => {
@@ -177,13 +156,17 @@ const ConnectionProvider = ({ children }) => {
             if(toType){
                 ws.send(`messages;${JSON.stringify({to: chat, from: user, targetType: toType.type})}`);
             }
-            
         }
-    }, [chat, ws, chats])
+    }, [chat, ws])
+
+    useEffect(() => {
+        if(pathname === '/'){
+            setChat('');
+        }
+    }, [pathname])
     return (
         <connectionProvider.Provider value={{
             user,
-            uploadPP,
             progress,
             chats,
             getClient,

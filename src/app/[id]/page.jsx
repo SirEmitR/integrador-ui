@@ -85,12 +85,14 @@ const ChatId = ({ params }) => {
                     {client?.active ? 'En linea' : client?.lastSeen ? `Ultima conexion ${new Date(client.lastSeen).toLocaleString()}` : ''}
                 </span>
             </div>
-            <section className='p-4 flex h-full flex-col justify-end flex-1 gap-2 overflow-y-scroll'>
+            <section className='flex-1 overflow-hidden'>
+                <div className='overflow-y-scroll flex w-full max-h-full justify-end flex-col gap-1 p-4 h-full'>
                 {chat.map((msg, i) => (
                     <Message key={i} data={msg} id={user} />
                 ))}
+                </div>
             </section>
-            <div className='flex justify-center gap-5 justify-between'>
+            <div className='flex gap-5 justify-between'>
                 {
                     file && (
                         <div className='p-2 text-xs text-gray-500 rounded-lg bg-white flex items-center gap-4'>
